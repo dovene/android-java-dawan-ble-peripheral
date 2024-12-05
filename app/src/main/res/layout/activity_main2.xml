@@ -6,9 +6,33 @@
     android:padding="16dp">
 
     <TextView
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
+        android:textStyle="bold"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Périphérique BLE avec des informations à publier"
+        android:textSize="14sp"/>
+    <TextView
+        android:id="@+id/informations_tv"
+        android:layout_width="match_parent"
+        android:textColor="@color/black"
+        android:layout_height="wrap_content"
+        android:text="--"
+        android:textSize="18sp"/>
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@color/black"
+        android:text="Waiting to Advertise"
+        android:textSize="1dp"/>
+    <TextView
         android:id="@+id/statusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Waiting to Advertise"
-        android:textSize="18sp"/>
+        android:textSize="14sp"/>
+
 </LinearLayout>

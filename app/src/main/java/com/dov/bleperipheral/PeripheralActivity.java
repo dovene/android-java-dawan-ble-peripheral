@@ -1,7 +1,5 @@
 package com.dov.bleperipheral;
 
-import static androidx.core.content.PackageManagerCompat.LOG_TAG;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
@@ -16,17 +14,12 @@ import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
-import android.bluetooth.le.AdvertisingSet;
-import android.bluetooth.le.AdvertisingSetCallback;
-import android.bluetooth.le.AdvertisingSetParameters;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelUuid;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.widget.TextView;
 
@@ -40,7 +33,12 @@ import java.util.UUID;
 public class PeripheralActivity extends AppCompatActivity {
     private static final String TAG = "BLEPeripheral";
     private static final UUID SERVICE_UUID = UUID.fromString("00000000-1111-2222-3333-444444444444");
-    private static final UUID CHARACTERISTIC_UUID = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
+    private static final UUID BATTERY_CHARACTERISTIC_UUID = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
+    private static final UUID TEMPERATURE_CHARACTERISTIC_UUID = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fc");
+    private static final UUID HUMIDITY_CHARACTERISTIC_UUID = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fd");
+    private int batteryLevel = 80;
+    private int temperatureLevel = 25;
+    private int humidityLevel = 60;
 
     private static final int REQUEST_PERMISSIONS = 1;
     private static final String[] PERMISSIONS = {
@@ -56,19 +54,25 @@ public class PeripheralActivity extends AppCompatActivity {
     private BluetoothManager bluetoothManager;
     private TextView statusText;
     private boolean isAdvertising = false;
+    private TextView informationsText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main2);
         statusText = findViewById(R.id.statusText);
+        informationsText = findViewById(R.id.informations_tv);
+        informationsText.setText("Batterie : " + batteryLevel + "%" + "\nTempérature : " + temperatureLevel + "°C" + "\nHumidité : " + humidityLevel + "%");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            //Demander les permissions
             requestPermissions(PERMISSIONS, REQUEST_PERMISSIONS);
         } else {
+            //Si les permissions sont déjà accordées, démarrer l'advertising
             setupBLEAdvertising();
         }
     }
+
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -82,10 +86,11 @@ public class PeripheralActivity extends AppCompatActivity {
                 }
             }
             if (allGranted) {
+                //Démarrer l'advertising
                 setupBLEAdvertising();
             } else {
                 Log.e(TAG, "Permissions denied");
-                statusText.setText("Permissions denied. Cannot start BLE advertising.");
+                statusText.setText("Permissions refusées. BLE advertising impossible.");
             }
         }
     }
@@ -117,15 +122,7 @@ public class PeripheralActivity extends AppCompatActivity {
             return;
         }
 
-
         AdvertiseSettings settings = new AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
-                .setConnectable(true)
-                .setTimeout(0)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
-                .build();
-
-        AdvertiseSettings settings1 = new AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
                 .setConnectable(true)
                 .setTimeout(10000)
@@ -133,12 +130,11 @@ public class PeripheralActivity extends AppCompatActivity {
                 .build();
 
         AdvertiseData data = new AdvertiseData.Builder()
-                .setIncludeDeviceName(true)
-                .setIncludeTxPowerLevel(false)
+                .setIncludeDeviceName(false)
                 .addServiceUuid(new ParcelUuid(SERVICE_UUID))
                 .build();
 
-        advertiser.startAdvertising(settings1, data, advertiseCallback);
+        advertiser.startAdvertising(settings, data, advertiseCallback);
 
         isAdvertising = true;
     }
@@ -168,6 +164,7 @@ public class PeripheralActivity extends AppCompatActivity {
         }
     };
 
+    // Initialiser le serveur GATT
     @SuppressLint("MissingPermission")
     private void setupGattServer() {
         gattServer = bluetoothManager.openGattServer(this, new BluetoothGattServerCallback() {
@@ -179,17 +176,15 @@ public class PeripheralActivity extends AppCompatActivity {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         Log.d(TAG, "Device connected");
-                        runOnUiThread(() -> statusText.setText("Device connected: " + device.getAddress()));
+                        runOnUiThread(() ->
+                        statusText.setText("Device connected: " + device.getAddress()));
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         Log.d(TAG, "Device disconnected");
                         runOnUiThread(() -> {
-                                    statusText.setText("Device disconnected");
+                                    statusText.setText("Device disconnected" + device.getAddress());
                                     stopAdvertising();
-                                    startAdvertising();
-                                }
+                                    startAdvertising();}
                                );
-                       // Restart advertising
-                        //new Handler(Looper.getMainLooper()).post(startAdvertising()); // Restart advertising
                     }
                 } else {
                     Log.e(TAG, "Connection error: status=" + status);
@@ -199,14 +194,30 @@ public class PeripheralActivity extends AppCompatActivity {
             @Override
             public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
                 super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
-                if (characteristic.getUuid().equals(CHARACTERISTIC_UUID)) {
-                    gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, new byte[]{(byte) 80}); // Example: Battery level 80%
+                if (characteristic.getUuid().equals(BATTERY_CHARACTERISTIC_UUID)) {
+                    gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, new byte[]{(byte) batteryLevel}); // Example: Battery level 80%
+                }
+                if (characteristic.getUuid().equals(TEMPERATURE_CHARACTERISTIC_UUID)) {
+                    gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, new byte[]{(byte) temperatureLevel}); // Example: Battery level 80%
+                }
+                if (characteristic.getUuid().equals(HUMIDITY_CHARACTERISTIC_UUID)) {
+                    gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, new byte[]{(byte) humidityLevel}); // Example: Battery level 80%
                 }
             }
         });
 
-        BluetoothGattCharacteristic characteristic = new BluetoothGattCharacteristic(
-                CHARACTERISTIC_UUID,
+        BluetoothGattCharacteristic batteryCharacteristic = new BluetoothGattCharacteristic(
+                BATTERY_CHARACTERISTIC_UUID,
+                BluetoothGattCharacteristic.PROPERTY_READ,
+                BluetoothGattCharacteristic.PERMISSION_READ
+        );
+        BluetoothGattCharacteristic tempCharacteristic  = new BluetoothGattCharacteristic(
+                TEMPERATURE_CHARACTERISTIC_UUID,
+                BluetoothGattCharacteristic.PROPERTY_READ,
+                BluetoothGattCharacteristic.PERMISSION_READ
+        );
+        BluetoothGattCharacteristic humidityCharacteristic = new BluetoothGattCharacteristic(
+                HUMIDITY_CHARACTERISTIC_UUID,
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ
         );
@@ -216,7 +227,9 @@ public class PeripheralActivity extends AppCompatActivity {
                 BluetoothGattService.SERVICE_TYPE_PRIMARY
         );
 
-        service.addCharacteristic(characteristic);
+        service.addCharacteristic(batteryCharacteristic);
+        service.addCharacteristic(tempCharacteristic);
+        service.addCharacteristic(humidityCharacteristic);
         gattServer.addService(service);
     }
 }
