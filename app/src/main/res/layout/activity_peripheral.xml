@@ -11,7 +11,7 @@
         android:textStyle="bold"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Périphérique BLE avec des informations à publier"
+        android:text="Périphérique BLE ayant des informations à publier"
         android:textSize="14sp"/>
     <TextView
         android:id="@+id/informations_tv"
