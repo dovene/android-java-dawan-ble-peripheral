@@ -59,7 +59,7 @@ public class PeripheralActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main2);
+        setContentView(R.layout.activity_peripheral);
         statusText = findViewById(R.id.statusText);
         informationsText = findViewById(R.id.informations_tv);
         informationsText.setText("Batterie : " + batteryLevel + "%" + "\nTempérature : " + temperatureLevel + "°C" + "\nHumidité : " + humidityLevel + "%");
